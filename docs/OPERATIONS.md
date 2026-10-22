@@ -19,6 +19,33 @@ macOS 安装依赖：`uv sync --locked --python 3.14 --extra macos`。完成后�
 
 托盘会打开浏览器中的首次设置页。源码运行不需要下载 Windows 安装包。
 
+### 依赖装不上时
+
+`uv sync` 有两处硬门槛，都与代码无关：
+
+- **uv 版本**：`[tool.uv]` 的 `required-version = ">=0.12.13"` 在读项目时生效。uv 低于它直接退出，不进入依赖解析，先 `uv self update`。
+- **setuptools 的 editable 构建**：`setup.py` 定制了 `build_py`，把 `migrations`、`web`、`resources` 复制进 wheel。setuptools 84 在 editable 安装里执行被定制的子命令，出错时那条弃用警告在格式化时抛 `KeyError: 'src'`，把真实原因盖掉。看到这个 traceback 往上翻真正的失败点，不是 setuptools 的毛病。
+
+`build_py` 要读完整资源树，任一文件读不出来都会中断复制：权限不足、安全软件拦截、同步盘占位文件都算。源码运行不需要 `peach/_resources` 那份副本，未打包时 `settings_file.PROJECT_ROOT` 从 `src/peach` 上溯两级指向仓库根。资源读不全时只装依赖：
+
+```sh
+uv sync --locked --python 3.14 --no-install-project
+```
+
+代价是少了 `peach` 和 `peach-tray` 两个入口脚本，改为从源码树启动。首次运行，Windows PowerShell：
+
+```powershell
+$env:PYTHONPATH = "src"; & .\.venv\Scripts\python.exe -X utf8 -m peach serve --setup
+```
+
+macOS：
+
+```sh
+PYTHONPATH=src ./.venv/bin/python -X utf8 -m peach serve --setup
+```
+
+`--setup` 只提供首次运行表单：忽略已发现的数据目录，也不需要口令。默认监听 `127.0.0.1:8900`，首次设置写好后去掉 `--setup` 即常规启动。`-X utf8` 让 Windows 中文系统不按控制台代码页解析路径。
+
 ## macOS 独立测试包
 
 在 macOS 的项目目录安装构建依赖：
