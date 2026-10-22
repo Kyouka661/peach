@@ -704,10 +704,10 @@ def misses_path(config):
 
 
 def _save(path, payload):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
-    temporary.replace(path)
+    # 固定名为 `.tmp` 的中间文件只容得下一个写入者。状态文件同时被扫描进程、Web 进程
+    # 恢复任务和界面轮询时的回写触碰，Windows 上并发替换会拿到 WinError 5，正在扫描的
+    # 那一份会整批丢掉。用 `fsutil` 的原子写入：临时名带随机后缀，替换失败按 READER_WAIT 重试。
+    atomic_write_text(path, json.dumps(payload, ensure_ascii=False))
 
 
 def decorate(state, *, now=None):
