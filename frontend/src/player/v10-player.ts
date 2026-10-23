@@ -1,4 +1,6 @@
 /* Peach 播放会话：Video.js 10 的媒体、原生事件与自有控制条共用同一枚 video。 */
+import { uniqueId } from '@peach/legacy/core';
+
 import type { PlayerEvents, PlayerSource, QualityLevelList, VideojsFactory, VjsPlayer } from './types';
 
 interface HlsEngine {
@@ -21,7 +23,7 @@ export const createV10Player: VideojsFactory = (video, options) => {
   const root = document.createElement('div');
   const provider = document.createElement('video-player');
   root.className = 'video-js vjs-paused vjs-user-active';
-  root.id = video.id || `peach-player-${crypto.randomUUID()}`;
+  root.id = video.id || `peach-player-${uniqueId()}`;
   root.setAttribute('lang', 'zh-CN');
   const container = document.createElement('media-container');
   let media = document.createElement('hlsjs-video') as MediaElement;

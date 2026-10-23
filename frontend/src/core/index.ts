@@ -216,6 +216,9 @@ const seededRank=(seed:number|string,value:string)=>{
 };
 /* 掷一粒取样种子。异或结果是有符号 32 位，先转无符号再取模：种子要写进地址，后端只认非负整数。 */
 const newSeed=()=>String(((Date.now()^(Math.random()*1e9|0))>>>0)%99991);
+/* 经 http://<局域网 IP> 打开时不是安全上下文，`crypto.randomUUID` 与 `navigator.clipboard` 都不存在。
+   本地唯一串（请求体、DOM id）退回时间戳加随机尾巴，调用方不必各写一份兜底。 */
+const uniqueId=()=>globalThis.crypto?.randomUUID?.()||`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 /* 时长四档是筛选条上的时长段，不是内容标签：目录的标签筛选里不收它们，地址上带来的也摘掉。 */
 const DURATION_TAGS:ReadonlySet<string>=new Set(['短片-2分内','中片-10分内','长片-30分内','超长片-30分上']);
 const cleanTagFilter=(value:unknown)=>String(value||'').split(',').filter(tag=>tag&&!DURATION_TAGS.has(tag)).join(',');
@@ -224,6 +227,7 @@ export {
   $,
   seededRank,
   newSeed,
+  uniqueId,
   DURATION_TAGS,
   cleanTagFilter,
   realDuration,

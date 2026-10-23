@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import auth, distribution, onboarding, scan, settings_file
+from . import auth, distribution, local_guard, onboarding, scan, settings_file
 from .api import create_app
 from .config import (
     CONFIGURED,
@@ -117,6 +117,9 @@ def _serve(args: argparse.Namespace) -> int:
         tunnel_state_root=settings_file.active().directory("state"),
         tunnel_log_root=settings_file.active().directory("logs"),
     )
+    notice = local_guard.startup_notice()
+    if notice:
+        print(notice)
     sync = _build_sync(args, settings)
     uvicorn.run(
         create_app(settings, sync), host=args.host, port=args.port, workers=1,

@@ -113,6 +113,15 @@ class ServeGateTests(unittest.TestCase):
         # 口令文件是托盘那份服务的门槛，开发时跳过登录不该把它擦掉或改写。
         self.assertEqual(auth.read_token(self._secrets()), token)
 
+    def test_the_remote_access_switch_keeps_the_token_gate_on_a_lan_bind(self):
+        from peach import local_guard
+        with mock.patch.dict(os.environ, {local_guard.ENV: "1"}):
+            with self.assertRaises(SystemExit) as raised:
+                cli._serve_token(self._args("--host", "0.0.0.0"))
+            self.assertIn("peach token", str(raised.exception))
+            token = auth.write_token(self._secrets())
+            self.assertEqual(cli._serve_token(self._args("--host", "0.0.0.0")), token)
+
     def test_no_auth_refuses_a_lan_bind_even_when_a_token_exists(self):
         auth.write_token(self._secrets())
         with self.assertRaises(SystemExit) as raised:

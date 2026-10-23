@@ -5,6 +5,10 @@ services:
     init: true
     restart: unless-stopped
     stop_grace_period: 75s
+    # 反向代理已终结 TLS，并且访问密码或访问口令已经设好时，取消下面两行注释，
+    # 管理接口按口令鉴权，不按来源地址、Host、转发头与 Origin 判定。
+    # environment:
+    #   PEACH_ALLOW_REMOTE: "1"
     ports:
       - "${PEACH_BIND:-127.0.0.1}:${PEACH_PORT:-8900}:8900"
     volumes:

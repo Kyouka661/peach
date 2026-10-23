@@ -31,6 +31,34 @@ class ServerTests(unittest.TestCase):
                 with self.subTest(peer=peer, headers=headers):
                     self.assertEqual(local_client(request), allowed)
 
+    def test_the_remote_access_switch_drops_every_source_check(self):
+        from peach import local_guard
+        from peach.routes_configuration import configurable, local_client
+        request = Request({"type": "http", "client": ("8.8.8.8", 1234),
+                           "server": ("192.0.2.10", 8900),
+                           "headers": [(b"x-forwarded-for", b"8.8.8.8"), (b"cf-connecting-ip", b"8.8.8.8")],
+                           "app": SimpleNamespace(state=SimpleNamespace(
+                               tunnel=None, settings=SimpleNamespace(mdns_name="peach", configured=True)))})
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertFalse(local_guard.relaxed())
+            self.assertFalse(local_client(request))
+            self.assertFalse(configurable(request))
+        with patch.dict("os.environ", {local_guard.ENV: "0"}):
+            self.assertFalse(local_guard.relaxed(), "只有字面值 1 打开开关")
+            self.assertFalse(local_client(request))
+        with patch.dict("os.environ", {local_guard.ENV: "1"}):
+            self.assertTrue(local_guard.relaxed())
+            self.assertTrue(local_client(request))
+            self.assertTrue(configurable(request))
+            self.assertTrue(local_guard.startup_notice())
+        with patch.dict("os.environ", {local_guard.ENV: "1"}), patch.dict(
+                "os.environ", {"PEACH_HEADLESS_MANAGED": ""}):
+            blank = Request({"type": "http", "client": None, "server": None, "headers": [],
+                             "app": SimpleNamespace(state=SimpleNamespace(
+                                 tunnel=None, settings=SimpleNamespace(mdns_name="peach", configured=False)))})
+            self.assertTrue(local_client(blank), "没有客户端地址的请求也算来源已放开")
+            self.assertFalse(configurable(blank), "未配置的机器不给配置入口")
+
     def test_cli_without_mdns_or_tunnel_needs_no_network_route(self):
         from peach import cli
         with patch.object(cli, "_require_readable_settings"), \

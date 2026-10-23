@@ -14,7 +14,7 @@ from collections import OrderedDict
 import threading
 import time
 from urllib.parse import urlsplit
-from . import access, tunnel
+from . import access, local_guard, tunnel
 from .web_entry import page_shell
 from starlette.concurrency import run_in_threadpool
 from urllib.parse import parse_qs
@@ -147,6 +147,8 @@ def same_origin(request: Request) -> None:
     外部 Origin 必须精确匹配这两者之一，不能由调用方通过 ``X-Forwarded-*`` 自己
     声明一个可信地址。
     """
+    if local_guard.relaxed():
+        return
     origin = request.headers.get("origin")
     if request.headers.get("sec-fetch-site") == "cross-site":
         raise HTTPException(403, "请从 Peach 配置页提交")

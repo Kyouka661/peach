@@ -129,3 +129,17 @@ it('有任务还在跟进时五秒查一次，全是终态三十秒一次', () =
   })] }))).toBe(5_000);
   expect(downloadPollInterval(undefined)).toBe(30_000);
 });
+
+it('非安全上下文里没有剪贴板，「复制磁力」点下去不抛错也不亮已复制', async () => {
+  // http://<局域网 IP> 打开时不是安全上下文：navigator.clipboard 不存在。
+  vi.stubGlobal('navigator', {});
+  const blocked = task({ id: 3, state: 'failed', state_label: '失败', failure: 'rejected', cancellable: false,
+    blocked: true, failure_label: '被判违规', failure_detail: '50038' });
+  serve(snapshot({ tasks: [blocked] }));
+  const host = await show();
+  const copy = buttonNamed('复制磁力', host)!;
+  await click(copy);
+  await settle();
+  expect(host.textContent).toContain('复制磁力');
+  expect(host.textContent).not.toContain('已复制磁力');
+});

@@ -3,6 +3,7 @@
 页面整个是 `frontend/src/react/settings/` 下的 React 子树（入口 `configuration-page.tsx`），
 挂在主站的 `/configuration` 路由里（ADR-0031）；这里只回数据。桌面由托盘管理，无桌面服务由专用入口管理；调用方范围与配置写入都在服务端校验。
 桌面部署只允许本机管理；Docker 部署还允许已登录的私有网络客户端管理。
+`PEACH_ALLOW_REMOTE=1` 时来源判定整体放开，管理接口只剩访问口令（见 `local_guard`）。
 `/healthz` 的 `configurable` 只控制入口显隐；这里负责实际访问检查。
 """
 from __future__ import annotations
@@ -22,8 +23,8 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from filelock import FileLock, Timeout
 
-from . import (access, distribution, entry_links, folder_picker, media_libraries, onboarding,
-               push_discovery, settings_file, media_configuration, tunnel, web_downloads)
+from . import (access, distribution, entry_links, folder_picker, local_guard, media_libraries,
+               onboarding, push_discovery, settings_file, media_configuration, tunnel, web_downloads)
 from .routes_auth import require_auth, require_authenticated_client, same_origin
 from .web_entry import runtime_fact_entries
 from . import release_updates, standalone_update, peach_proxy, desktop_startup, desktop_uninstall
@@ -66,6 +67,8 @@ def tunnel_forwarded(request: Request) -> bool:
 
 def local_client(request: Request) -> bool:
     """按 IP 检查管理请求；桌面限本机，Docker 允许本机与私有网络，拒绝代理转发。"""
+    if local_guard.relaxed():
+        return True
     if not request.client or tunnel_forwarded(request):
         return False
     server = request.scope.get("server")
@@ -168,7 +171,11 @@ async def client_error(request: Request):
 
 
 def configurable(request: Request) -> bool:
-    """配置只向已配置的托盘服务的本机调用方开放；调试 serve 免掉托管那两条。"""
+    """配置只向已配置的托盘服务的本机调用方开放；调试 serve 免掉托管那两条。
+
+    放开来源限制时只看「这台机器配置过没有」：来源已经不再参与判定。"""
+    if local_guard.relaxed():
+        return bool(request.app.state.settings.configured)
     if dev_environment():
         return local_client(request)
     return (managed_configuration() and bool(request.app.state.settings.configured)
@@ -177,7 +184,7 @@ def configurable(request: Request) -> bool:
 
 def snapshot(config) -> dict[str, Any]:
     """配置页首屏要的一切：当前值、修订号、可写与否，以及这台机器的运行信息。"""
-    editable = managed_configuration()
+    editable = managed_configuration() or local_guard.relaxed()
     from . import remote_reporting, library_sharing
     media = config.mounts.get("local") or config.locations.get("local", ())
     return {
@@ -785,7 +792,7 @@ def pick_folder(request: Request, body: dict[str, Any] = Body(default_factory=di
 def save_configuration(request: Request, body: dict[str, Any] = Body(default_factory=dict),
                        _args=Depends(require_auth)):
     local_only(request)
-    if not managed_configuration():
+    if not (managed_configuration() or local_guard.relaxed()):
         raise HTTPException(409, "此部署通过配置文件管理服务")
     same_origin(request)
     with _SAVE_LOCK:

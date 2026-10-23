@@ -94,6 +94,18 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertNotIn("my-private-password", json.dumps(result))
         self.assertNotIn("hash", result["details"])
 
+    def test_the_remote_access_switch_counts_as_an_exposed_entry(self):
+        from peach import local_guard
+        from peach.access import save
+        save(self.settings.access_path, "")
+        with patch.dict("os.environ", {local_guard.ENV: "1"}):
+            result = diagnostics.security(self.settings)
+        self.assertEqual(result["status"], "warning")
+        self.assertTrue(result["details"]["exposed"])
+        save(self.settings.access_path, "my-private-password")
+        with patch.dict("os.environ", {local_guard.ENV: "1"}):
+            self.assertEqual(diagnostics.security(self.settings)["status"], "ok")
+
     def test_corrupt_access_policy_and_missing_tools_are_explained(self):
         self.settings.access_path.write_text("broken", encoding="utf-8")
         self.assertEqual(diagnostics.security(self.settings)["status"], "failed")

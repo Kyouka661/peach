@@ -1,12 +1,14 @@
 # 安全说明
 
-Peach is a single-user, self-hosted application: one deployment serves one person, with no accounts, roles or tenant isolation. The threat model covers one thing only: other devices on the same LAN being let in by accident. Browser access is protected by an optional access password (scrypt-hashed, login attempts limited per client); scripts use an internal token under `<data root>/secrets/`, and `peach serve` refuses to start on a non-loopback address when it has no token. Source deployments serve HTTPS with a self-signed local CA (only the CA certificate is ever distributed); the standalone Windows package serves plain HTTP on the LAN. Do not expose Peach to the public internet through port forwarding or a reverse proxy: there is no audit log and no second factor. The built-in Cloudflare entry refuses to start without an access password and is meant for temporary previews. Report vulnerabilities through the repository's GitHub **Security** tab (**Private vulnerability reporting**), not a public issue. The rest of this document is in Chinese.
+Peach is a single-user, self-hosted application: one deployment serves one person, with no accounts, roles or tenant isolation. The threat model covers one thing only: other devices on the same LAN being let in by accident. Browser access is protected by an optional access password (scrypt-hashed, login attempts limited per client); scripts use an internal token under `<data root>/secrets/`, and `peach serve` refuses to start on a non-loopback address when it has no token. Setting `PEACH_ALLOW_REMOTE=1` takes the loopback check, the host allow-list, forwarded headers and `Origin` out of management-endpoint decisions, so any client that reaches the port and passes the token can read and change configuration; the token check, login rate limit, session cookie rules and the non-loopback start refusal all keep applying. Source deployments serve HTTPS with a self-signed local CA (only the CA certificate is ever distributed); the standalone Windows package serves plain HTTP on the LAN. Do not expose Peach to the public internet through port forwarding or a reverse proxy: there is no audit log and no second factor. The built-in Cloudflare entry refuses to start without an access password and is meant for temporary previews. Report vulnerabilities through the repository's GitHub **Security** tab (**Private vulnerability reporting**), not a public issue. The rest of this document is in Chinese.
 
 ## 威胁模型
 
 Peach 是单人自托管应用：一个部署只服务一个人，没有账号体系、没有权限分级，也没有多租户隔离。
 
 Linux 无桌面部署的配置管理接受经过鉴权的回环与私有网络连接，拒绝公网、链路本地、保留地址和携带转发头的管理请求。地址分类使用 Python 标准库。容器端口默认发布到宿主机回环，部署方式见 [Docker 部署](docs/DOCKER.md)。
+
+设置 `PEACH_ALLOW_REMOTE=1` 时，来源地址、`Host` 白名单、转发头与 `Origin` 不参与管理接口判定：任何能连上端口的客户端通过访问口令登录后即可读写配置。口令校验、登录尝试限速、会话 cookie 属性与非回环无口令拒绝启动保持不变。开关只认字面值 `1`，不设置时按上面的来源判定执行。动机与边界见 [ADR-0114](docs/adr/0114-remote-access-opt-in.md)。
 
 能打开 Peach 的人，就能看到整个馆藏，也能做任何修改。Peach 只防一件事：同一局域网里的其他设备被无意放进来。多人共用和云端托管不在考虑范围内。
 
@@ -32,7 +34,7 @@ Linux 无桌面部署的配置管理接受经过鉴权的回环与私有网络�
 - `peach token` 查看口令，`peach token --rotate` 换一个新的，换完要重启服务。换口令会让旧口令和用旧口令登录的会话失效；用访问密码登录的浏览器不受影响。
 - 读取顺序是 `--token` 参数、`PEACH_TOKEN` 环境变量、口令文件。不要长期用 `--token <口令>` 传递，同一台电脑上的其他程序能从进程列表看到命令行。口令也不写进 `config.toml`，因为那份文件可能会被贴进 issue。
 - 脚本用 `X-Token` 请求头携带口令。`?t=<口令>` 查询参数也能用，但口令会留在访问日志、代理日志和浏览历史里，只在一次性场合用。
-- **`peach serve` 监听非回环地址却没有口令时，会直接拒绝启动**，而不是只打印警告：托盘在后台启动服务，警告没人看得见，服务却已经对整个局域网开放了。只监听 `127.0.0.1` 时可以没有口令。
+- **`peach serve` 监听非回环地址却没有口令时，会直接拒绝启动**，而不是只打印警告：托盘在后台启动服务，警告没人看得见，服务却已经对整个局域网开放了。只监听 `127.0.0.1` 时可以没有口令。设置 `PEACH_ALLOW_REMOTE=1` 的部署按同一判据执行，开关不改变这条。
 - 开启两台电脑之间的复制时，两台要用同一份口令文件，复制过去即可。
 
 口令与密码的比对都用常量时间比较。

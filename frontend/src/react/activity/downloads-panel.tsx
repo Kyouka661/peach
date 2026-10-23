@@ -81,8 +81,17 @@ function TaskCard({ task, writable }: { task: DownloadTask; writable: boolean })
       code: task.code, title: task.title, origin: task.origin };
     void action.run('resubmit', (signal) => apiSend(DOWNLOADS_URL, body, 'POST', signal), refresh);
   };
-  const copy = () => {
-    void navigator.clipboard.writeText(task.source_uri).then(() => setCopied(true), () => setCopied(false));
+  /* 经 http://<局域网 IP> 打开时不是安全上下文，`navigator.clipboard` 不存在：这个键照画，
+     点了只是不亮「已复制磁力」，异常不冒到根错误边界。 */
+  const copy = async () => {
+    const writeText = navigator.clipboard?.writeText;
+    if (!writeText) { setCopied(false); return }
+    try {
+      await writeText.call(navigator.clipboard, task.source_uri);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
   };
   const retryPostprocess = () => {
     void action.run('postprocess', (signal) => apiSend(
@@ -123,7 +132,7 @@ function TaskCard({ task, writable }: { task: DownloadTask; writable: boolean })
             ? <Button variant="secondary" size="small" {...busyProps(action.busy === 'postprocess')}
                 onClick={retryPostprocess}>重试后处理</Button>
             : null}
-          <Button variant="ghost" size="small" onClick={copy}>{copied ? '已复制磁力' : '复制磁力'}</Button>
+          <Button variant="ghost" size="small" onClick={() => void copy()}>{copied ? '已复制磁力' : '复制磁力'}</Button>
         </div>
       </div>
       {reason || task.postprocess_detail

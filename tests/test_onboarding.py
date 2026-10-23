@@ -647,7 +647,8 @@ class SetupJsonContractTests(_SetupHttpCase):
             self.assertEqual(len(by_key["media_dir"]["help"]), 1)
         else:
             self.assertIsNone(data["media_root"])
-            self.assertIn("本机文件夹是这台电脑读取媒体的位置", by_key["media_dir"]["help"][-1])
+            self.assertEqual(len(by_key["media_dir"]["help"]), 2)
+            self.assertIn("Docker", by_key["media_dir"]["help"][-1])
         self.assertEqual(data["cloud"]["link"]["url"], "https://www.clouddrive2.com/help.html")
         # 默认对局域网开放，所以访问密码开关第一次出现就开着；扫描默认勾上，导入历史默认不勾。
         self.assertEqual((data["access_enabled"], data["scan_now"], data["history_guide"]), (True, True, False))
@@ -712,6 +713,23 @@ class SetupJsonContractTests(_SetupHttpCase):
         with self.subTest("不是 JSON 对象"):
             response = self._send("POST", self.SUBMIT, json=["not", "an", "object"])
             self.assertEqual((response.status_code, response.json()), (400, {"error": "请求正文要是 JSON 对象"}))
+
+    def test_the_remote_access_switch_opens_the_first_run_form_to_any_client(self):
+        from peach import local_guard
+        with mock.patch.dict(os.environ, {local_guard.ENV: "1"}):
+            response = self._send("GET", self.QUESTIONS, client=("198.51.100.7", 51000),
+                                  base_url="http://192.0.2.10:8900")
+            self.assertEqual(response.status_code, 200, response.text)
+            with mock.patch.object(distribution, "standalone", return_value=True):
+                response = self._send("POST", self.SUBMIT, json=self._body(),
+                                      client=("198.51.100.7", 51000),
+                                      base_url="http://192.0.2.10:8900",
+                                      headers={"Origin": "http://elsewhere.example"})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertTrue(self.data_root.exists())
+            again = self._send("GET", self.QUESTIONS, configured=True)
+            self.assertEqual((again.status_code, again.json()), (404, {"error": "not found"}),
+                             "配置完成后首启入口照常消失")
 
     def test_a_second_json_submission_refuses_to_overwrite_the_settings_file(self):
         first = self._send("POST", self.SUBMIT, json=self._body(), headers={"Origin": "http://test"})
@@ -1123,6 +1141,23 @@ class StandaloneConfigurationTests(_Case):
             response = client.post("/api/configuration", headers=headers, json=data)
             self.assertEqual(response.status_code, 403)
         self.assertEqual(before, self.config.path.read_bytes())
+
+    def test_the_remote_access_switch_serves_remote_clients_after_the_password(self):
+        from peach import local_guard
+        from peach.routes_configuration import revision
+        data = {"revision": revision(self.config), "media_dirs": [str(self.media)], "port": "9123"}
+        with mock.patch.dict(os.environ, {local_guard.ENV: "1"}), \
+                self.client(address="198.51.100.7", base_url="http://192.0.2.10:8900") as client:
+            headers = {"X-Token": "test-token"}
+            self.assertTrue(client.get("/healthz").json()["configurable"])
+            self.assertEqual(client.get("/api/configuration").status_code, 401, "开关不动口令闸门")
+            snapshot = client.get("/api/configuration", headers=headers)
+            self.assertEqual(snapshot.status_code, 200, snapshot.text)
+            self.assertTrue(snapshot.json()["editable"])
+            self.assertEqual(snapshot.json()["notice"], "")
+            saved = client.post("/api/configuration", headers={
+                **headers, "Origin": "https://elsewhere.example"}, json=data)
+            self.assertEqual(saved.status_code, 200, saved.text)
 
     def test_browser_navigations_get_an_error_page_instead_of_raw_json(self):
         """地址栏里直接打开一个出错的路径，看到的是 Peach 的页面，不是一行 JSON。

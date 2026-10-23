@@ -12,7 +12,7 @@ import tempfile
 import time
 from contextlib import closing
 
-from . import __version__, access, distribution, settings_file
+from . import __version__, access, distribution, local_guard, settings_file
 from .ffmpeg import FFmpegResolver, binary_diagnostics
 from .health import inspect_database
 from .mount_reachability import MountReachability, PROBE_TIMEOUT
@@ -98,7 +98,7 @@ def security(settings):
     except ValueError:
         loopback = False
     protected = policy["mode"] == "password" or (policy["mode"] == "legacy" and bool(settings.token))
-    exposed = not loopback or settings.tunnel_enabled
+    exposed = not loopback or settings.tunnel_enabled or local_guard.relaxed()
     if policy["mode"] == "locked":
         return item("访问安全", "failed", "访问密码配置无法读取", action="在本机检查访问密码配置")
     if exposed and not protected:

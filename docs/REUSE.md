@@ -22,6 +22,12 @@ Peach 只保留设备选择、一次性合成帧探测、命令尝试顺序与�
 
 请求错误文案复用 `core/request-error.ts`，实体登记复用 `core/entity-links.ts`。API 直接引用这两个模块，首启与登录页不加载主界面的路由和字素分段初始化；主界面仍通过 `core/index.ts` 导出同一份错误文案。冷启动导入回归核对 API 不构造界面分段器，既有反馈测试覆盖状态码、超时与服务端中文原因。无新增依赖。
 
+## 前端 id 生成
+
+请求体标识与 DOM id 复用 `frontend/src/core/index.ts` 的 `uniqueId()`：安全上下文直接取 `crypto.randomUUID()`，经 `http://` 局域网地址打开时退回时间戳加随机尾巴。`frontend/src/player/stream.ts`、`frontend/src/player/v10-player.ts` 与 `frontend/src/react/settings/indexer-settings.tsx` 引用这一个函数，不在调用处各写一份兜底。`crypto.randomUUID` 只在安全上下文存在，退回分支覆盖明文 HTTP 入口。
+
+复制按钮同样先取 `navigator.clipboard?.writeText`，接口缺失时保持未复制状态，不抛异常。无新增依赖。
+
 ## GitHub 项目看板
 
 用户反馈归属应用仓库 `peach-mitao/peach`，维护者项目任务归属 `peach-mitao/peach-roadmap`，共同使用一个公开 Project。集中在应用仓库处理事件并每 6 小时补查规划仓库，凭据仅保留在应用仓库。Issue 关联使用仓库名与编号，迁移映射兼容已存在的关联行；交付版本始终按应用仓库的主线提交和发布制品核验。

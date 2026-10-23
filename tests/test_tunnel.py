@@ -11,7 +11,7 @@ from unittest import mock
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from peach import access, api, routes_auth, routes_configuration, settings_file, tunnel
+from peach import access, api, local_guard, routes_auth, routes_configuration, settings_file, tunnel
 from peach.config import PeachSettings
 
 #: 假扮 cloudflared 的真实子进程：写 pidfile、按行吐出一条入口，然后等着被收掉。
@@ -517,6 +517,12 @@ class TunnelOriginGuardTests(unittest.TestCase):
             routes_auth.same_origin(self.named_request("https://peach.example.net"))
         self.assertEqual(raised.exception.status_code, 403)
 
+    def test_the_remote_access_switch_accepts_a_foreign_origin(self):
+        request = self.request("https://other.example")
+        request.headers = {"origin": "https://other.example", "sec-fetch-site": "cross-site"}
+        with mock.patch.dict("os.environ", {local_guard.ENV: "1"}):
+            routes_auth.same_origin(request)
+
     def test_a_named_hostname_is_not_allowed_while_the_mode_is_quick(self):
         manager = SimpleNamespace(snapshot=lambda: tunnel.TunnelSnapshot(state="stopped"))
         settings = SimpleNamespace(tunnel_mode="quick", tunnel_hostname="peach.example.com")
@@ -936,6 +942,12 @@ class LocalClientTests(unittest.TestCase):
         request = self.request("running", {"cf-ray": "7a0-LAX"})
         with mock.patch.dict("os.environ", {"PEACH_DEV": "1"}):
             self.assertFalse(routes_configuration.configurable(request))
+
+    def test_the_remote_access_switch_lets_edge_requests_manage_the_configuration(self):
+        request = self.request("running", {"cf-connecting-ip": "198.51.100.7"})
+        with mock.patch.dict("os.environ", {local_guard.ENV: "1"}):
+            self.assertTrue(routes_configuration.local_client(request))
+            self.assertTrue(routes_configuration.configurable(request))
 
     def test_the_login_rate_limit_separates_edge_clients(self):
         request = self.request("running", {"cf-connecting-ip": "198.51.100.7"})

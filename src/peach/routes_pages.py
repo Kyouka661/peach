@@ -35,7 +35,7 @@ from fastapi.responses import (
     Response,
 )
 
-from . import distribution, onboarding, settings_file
+from . import distribution, local_guard, onboarding, settings_file
 from .config import PROJECT_ROOT
 from .entities import resolve_entity, resolve_entity_id
 from .routes_auth import query_auth_redirect, require_asset_auth, require_page_auth, set_auth_cookie
@@ -309,10 +309,15 @@ def _setup_guard(request: Request, *, submit: bool) -> None:
     「禁止」——把它做成一条可探测的 403 等于对外宣告这里有个初始化入口）；非回环调用方是
     403（引导服务只绑 127.0.0.1，能走到这里说明有人转发了它）；独立包认地址栏里的主机名，
     不是回环写法也是 403。提交再看 Origin：从别的页面发来的表单不收。
+
+    `PEACH_ALLOW_REMOTE=1` 跳过调用方、主机名与 Origin 三条，只留下「已配置就没有这个
+    入口」：首启提交会写入媒体路径与访问口令，入口本身不设口令，来源判定是它唯一的边界。
     """
     settings = request.app.state.settings
     if settings.configured:
         raise HTTPException(status_code=404, detail="not found")
+    if local_guard.relaxed():
+        return
     host = request.client.host if request.client else ""
     if host not in _LOOPBACK:
         raise HTTPException(status_code=403, detail="setup is loopback-only")
