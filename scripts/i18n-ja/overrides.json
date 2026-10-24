@@ -1,0 +1,29 @@
+{
+  "frontend/src/player/controls.ts": {
+    "关闭": "オフ"
+  },
+  "frontend/src/player/subtitles.ts": {
+    "关闭": "オフ"
+  },
+  "frontend/src/react/settings/service-preferences.tsx": {
+    "关闭": "オフ"
+  },
+  "frontend/src/react/library-shortcuts/shortcut-controls.tsx": {
+    "收藏": "お気に入り登録"
+  },
+  "frontend/src/react/settings/maintenance-settings.tsx": {
+    "卸载 Peach@confirmation": null
+  },
+  "frontend/test/react/maintenance-settings.test.tsx": {
+    "卸载 Peach@confirmation": null
+  },
+  "frontend/src/react/scraping/custom-sources.tsx": {
+    "无码": "無修正"
+  },
+  "frontend/src/react/activity/resource-search.tsx": {
+    "高清": "高画質"
+  },
+  "frontend/src/react/catalog-grid/catalog-grid-page.tsx": {
+    "竖屏": "縦型"
+  }
+}
